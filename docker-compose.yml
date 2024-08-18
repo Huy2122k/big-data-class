@@ -1,0 +1,253 @@
+version: '3.7'
+services:
+  spark_master:
+    container_name: spark_master
+    image: registry.gitlab.com/chung-pi/spark-zeppelin/spark_master:latest
+    hostname: master
+    environment:
+      - ZEPPELIN_PORT=80
+      - SPARK_MASTER=local[*]
+      - MASTER=local[*]
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_DRIVER_MEMORY=512m
+      - SPARK_EXECUTOR_MEMORY=512m
+    healthcheck:
+      disable: true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - 4040:4040
+      - 7077:7077
+      - 6066:6066
+      - 8081:8081
+      - 8080:8080
+      - 80:80
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+    restart: "always"
+    extra_hosts:
+      - "master-spark:192.168.0.100"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 4096M
+        reservations:
+          cpus: '1'
+          memory: 4096M
+    volumes:
+      - './notebook:/usr/zeppelin/notebook'
+
+  spark_worker_01:
+    container_name: spark_worker_01
+    image: spark_master:latest
+    hostname: worker_01
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      labels:
+        com.bkwallet.description: "Big Data Class"
+        com.bkwallet.maintainer: "ChungDT <chungdt@soict.hust.edu.vn>"
+    environment:
+      - ZEPPELIN_PORT=80
+      - SPARK_MASTER=spark://master:7077
+      - MASTER=spark://master:7077
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_DRIVER_MEMORY=512m
+      - SPARK_EXECUTOR_MEMORY=256m
+    healthcheck:
+      disable: true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "8082:8081"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+    restart: "always"
+
+  spark_worker_02:
+    container_name: spark_worker_02
+    image: spark_master:latest
+    hostname: worker_02
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      labels:
+        com.bkwallet.description: "Big Data Class"
+        com.bkwallet.maintainer: "ChungDT <chungdt@soict.hust.edu.vn>"
+    environment:
+      - ZEPPELIN_PORT=80
+      - SPARK_MASTER=spark://master:7077
+      - MASTER=spark://master:7077
+      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_DRIVER_MEMORY=512m
+      - SPARK_EXECUTOR_MEMORY=256m
+    healthcheck:
+      disable: true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "8083:8081"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+    restart: "always"
+  
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka:2.11-1.1.1 #The spark consumer doesn't work with scala 2.12
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: 172.20.0.4
+      KAFKA_CREATE_TOPICS: "amazon-laptops:1:1"
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    volumes:
+      - './kafka:/var/run/docker.sock'
+  
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    hostname: rabbitmq
+    build:
+      context: .
+      dockerfile: Dockerfile.rabbitmq
+      labels:
+        com.bkwallet.description: "Big Data Class"
+        com.bkwallet.maintainer: "ChungDT <chungdt@soict.hust.edu.vn>"
+    environment:
+      - SPARK_MASTER=spark://master:7077
+      - MASTER=spark://master:7077
+    healthcheck:
+      disable: true
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+      - "1883:1883"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+    restart: "always"
+
+  # elasticsearch:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  #   container_name: elasticsearch
+  #   environment:
+  #     - cluster.name=docker-cluster
+  #     - bootstrap.memory_lock=true
+  #     - http.cors.enabled=true
+  #     - http.cors.allow-origin=*
+  #     - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.elasticsearch
+  #   ulimits:
+  #     memlock:
+  #       soft: -1
+  #       hard: -1
+  #   volumes:
+  #     - './elasticsearch/esdata1:/usr/share/elasticsearch/data'
+  #   ports:
+  #     - 9200:9200
+
+  # elasticsearch2:
+  #   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  #   container_name: elasticsearch2
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.elasticsearch
+  #   environment:
+  #     - cluster.name=docker-cluster
+  #     - bootstrap.memory_lock=true
+  #     - http.cors.enabled=true
+  #     - http.cors.allow-origin=*
+  #     - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+  #     - "discovery.zen.ping.unicast.hosts=elasticsearch"
+  #   ulimits:
+  #     memlock:
+  #       soft: -1
+  #       hard: -1
+  #   volumes:
+  #     - './elasticsearch/esdata2:/usr/share/elasticsearch/data'
+
+  # kibana:
+  #   image: 'docker.elastic.co/kibana/kibana:6.3.2'
+  #   container_name: kibana
+  #   environment:
+  #     SERVER_NAME: kibana.local
+  #     ELASTICSEARCH_URL: http://elasticsearch:9200
+  #   ports:
+  #     - '5601:5601'
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.2
+    container_name: elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - node.name=es-master
+      - node.master=true
+      # - node.data=false
+      - bootstrap.memory_lock=true
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - './elasticsearch/esdata1:/usr/share/elasticsearch/data'
+    ports:
+      - 9200:9200
+
+  elasticsearch2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.2
+    container_name: elasticsearch2
+    environment:
+      - cluster.name=docker-cluster
+      - node.master=false
+      - node.data=true
+      - node.name=es-data1
+      - bootstrap.memory_lock=true
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "discovery.zen.ping.unicast.hosts=elasticsearch"
+    mem_limit: 1G
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - './elasticsearch/esdata2:/usr/share/elasticsearch/data'
+
+  kibana:
+    image: 'docker.elastic.co/kibana/kibana:6.3.2'
+    container_name: kibana
+    environment:
+      SERVER_NAME: kibana.local
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+    ports:
+      - '5601:5601'
+    mem_limit: 512M
